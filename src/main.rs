@@ -3,6 +3,7 @@ use structopt::StructOpt;
 use image::GenericImageView;
 
 const Z_BASE: f32 = -3.0;
+const PIXEL_SIZE: f32 = 0.1;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "example", about = "An example of StructOpt usage.")]
@@ -38,18 +39,23 @@ fn process_image(input: image::DynamicImage) -> Vec<stl_io::Triangle> {
     }).collect();
     //println!("Slopes: {:?}", slopes);
     let min_z = slopes.iter().map(|s| s.z + s.slope.min(0)).min().unwrap_or(0);
-    let z_base = Z_BASE + min_z.min(0) as f32/128.0;
+    let max_x = slopes.iter().map(|s| s.x).max().unwrap_or(0);
+    let max_y = slopes.iter().map(|s| s.y).max().unwrap_or(0);
+    let z_base = Z_BASE + min_z.min(0) as f32/128.0 * PIXEL_SIZE;
     let tris: Vec<_> = slopes.iter().flat_map(|s| {
-        let x = s.x as f32;
-        let y = s.y as f32;
-        let z0 = s.z as f32 / 128.0;
-        let z1 = (s.z as f32 + s.slope as f32) / 128.0;
-        quad_tris((x, y, z0), (x + 1.0, y, z0), (x + 1.0, y + 1.0, z1), (x, y + 1.0, z1))
-            .chain(quad_tris((x, y, z_base), (x + 1.0, y, z_base), (x + 1.0, y + 1.0, z_base), (x, y + 1.0, z_base)))
-            .chain(quad_tris((x, y, z_base), (x + 1.0, y, z_base), (x + 1.0, y, z0), (x, y, z0)))
-            .chain(quad_tris((x, y + 1.0, z_base), (x + 1.0, y + 1.0, z_base), (x + 1.0, y + 1.0, z1), (x, y + 1.0, z1)))
-            .chain(quad_tris((x, y, z_base), (x, y + 1.0, z_base), (x, y + 1.0, z1), (x, y, z0)))
-            .chain(quad_tris((x + 1.0, y, z_base), (x + 1.0, y + 1.0, z_base), (x + 1.0, y + 1.0, z1), (x + 1.0, y, z0)))
+        let x0 = (s.x as f32 - max_x as f32 / 2.0) * PIXEL_SIZE;
+        let y0 = (s.y as f32 - max_y as f32 / 2.0) * PIXEL_SIZE;
+        let x1 = x0 + PIXEL_SIZE;
+        let y1 = y0 + PIXEL_SIZE;
+        let z0 = s.z as f32 / 128.0 * PIXEL_SIZE;
+        let z1 = (s.z as f32 + s.slope as f32) / 128.0 * PIXEL_SIZE;
+
+        quad_tris((x0, y0, z0), (x1, y0, z0), (x1, y1, z1), (x0, y1, z1))
+            .chain(quad_tris((x0, y0, z_base), (x1, y0, z_base), (x1, y1, z_base), (x0, y1, z_base)))
+            .chain(quad_tris((x0, y0, z_base), (x1, y0, z_base), (x1, y0, z0), (x0, y0, z0)))
+            .chain(quad_tris((x0, y1, z_base), (x1, y1, z_base), (x1, y1, z1), (x0, y1, z1)))
+            .chain(quad_tris((x0, y0, z_base), (x0, y1, z_base), (x0, y1, z1), (x0, y0, z0)))
+            .chain(quad_tris((x1, y0, z_base), (x1, y1, z_base), (x1, y1, z1), (x1, y0, z0)))
     }).collect();
     //println!("Tris: {:?}", tris);
     tris
